@@ -1,128 +1,138 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert, TextInput, Switch } from 'react-native';
+import MapScreen from './screens/MapScreen';
+import { SAMPLE_LOCATIONS, EwasteLocation } from './data/locations';
+import * as Location from 'expo-location';
 
 const Tab = createBottomTabNavigator();
 
-const SAMPLE_LOCATIONS = [
-  {
-    id: 'greentech',
-    name: 'GreenTech Recycling Center',
-    address: '1234 Environmental Ave, San Francisco, CA',
-    services: 'Recycling, Donation, Buy Back',
-    distance: '2.3 km away',
-    latitude: 37.77926,
-    longitude: -122.4192,
-  },
-  {
-    id: 'ecodrop',
-    name: 'EcoDrop Mobile Collection',
-    address: '5678 Green Street, San Francisco, CA',
-    services: 'Pickup, Drop-off',
-    distance: '1.8 km away',
-    latitude: 37.7719,
-    longitude: -122.4312,
-  },
-  {
-    id: 'techrepair',
-    name: 'TechRepair Plus',
-    address: '9012 Tech Boulevard, San Francisco, CA',
-    services: 'Repair, Recycling, Buy Back',
-    distance: '3.1 km away',
-    latitude: 37.7885,
-    longitude: -122.4075,
-  },
-];
-
-// Map Screen with Google Maps and sample locations
-function MapScreen() {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>🗺️ E-Waste Collection Centers</Text>
-      <View style={styles.mapContainer}>
-        <MapView
-          style={styles.map}
-          provider={PROVIDER_GOOGLE}
-          initialRegion={{
-            latitude: 37.77926,
-            longitude: -122.4192,
-            latitudeDelta: 0.06,
-            longitudeDelta: 0.06,
-          }}
-        >
-          {SAMPLE_LOCATIONS.map((location) => (
-            <Marker
-              key={location.id}
-              coordinate={{
-                latitude: location.latitude,
-                longitude: location.longitude,
-              }}
-              title={location.name}
-              description={`${location.address} • ${location.services}`}
-            />
-          ))}
-        </MapView>
-      </View>
-
-      <ScrollView style={styles.scrollView}>
-        {SAMPLE_LOCATIONS.map((location) => (
-          <View key={location.id} style={styles.locationCard}>
-            <Text style={styles.locationName}>{location.name}</Text>
-            <Text style={styles.locationAddress}>{location.address}</Text>
-            <Text style={styles.locationServices}>Services: {location.services}</Text>
-            <Text style={styles.locationDistance}>{location.distance}</Text>
-          </View>
-        ))}
-      </ScrollView>
-    </View>
-  );
-}
-
-// Simple Search Screen
+// Search & filter screen powered by sample location data
 function SearchScreen() {
+  const SERVICE_FILTERS = ['Recycling', 'Donation', 'Repair', 'Buy Back', 'Pickup', 'Drop-off'];
+  const ITEM_FILTERS = ['Mobile Phones', 'Laptops', 'Batteries', 'Monitors'];
+
+  const [searchText, setSearchText] = useState('');
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+
+  const toggleService = (service: string) => {
+    setSelectedServices((current) =>
+      current.includes(service) ? current.filter((s) => s !== service) : [...current, service],
+    );
+  };
+
+  const toggleItem = (item: string) => {
+    setSelectedItems((current) =>
+      current.includes(item) ? current.filter((s) => s !== item) : [...current, item],
+    );
+  };
+
+  const filteredLocations = useMemo<EwasteLocation[]>(() => {
+    return SAMPLE_LOCATIONS.filter((location) => {
+      const text = searchText.trim().toLowerCase();
+
+      if (text) {
+        const haystack =
+          `${location.name} ${location.address} ${location.services} ${location.acceptedItems.join(' ')}`.toLowerCase();
+        if (!haystack.includes(text)) {
+          return false;
+        }
+      }
+
+      if (selectedServices.length > 0) {
+        const servicesLower = location.services.toLowerCase();
+        const matchesService = selectedServices.some((service) =>
+          servicesLower.includes(service.toLowerCase()),
+        );
+        if (!matchesService) return false;
+      }
+
+      if (selectedItems.length > 0) {
+        const itemsLower = location.acceptedItems.map((i) => i.toLowerCase());
+        const matchesItem = selectedItems.some((item) =>
+          itemsLower.includes(item.toLowerCase()),
+        );
+        if (!matchesItem) return false;
+      }
+
+      return true;
+    });
+  }, [searchText, selectedServices, selectedItems]);
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>🔍 Search & Filter</Text>
       <ScrollView style={styles.scrollView}>
+        <View style={styles.searchBarContainer}>
+          <TextInput
+            placeholder="Search by center name, address, or service..."
+            placeholderTextColor="#999"
+            value={searchText}
+            onChangeText={setSearchText}
+            style={styles.searchInput}
+          />
+        </View>
+
         <View style={styles.filterCard}>
           <Text style={styles.sectionTitle}>Service Types</Text>
           <View style={styles.chipContainer}>
-            <TouchableOpacity style={styles.chip}>
-              <Text style={styles.chipText}>Recycling</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.chip}>
-              <Text style={styles.chipText}>Donation</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.chip}>
-              <Text style={styles.chipText}>Repair</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.chip}>
-              <Text style={styles.chipText}>Buy Back</Text>
-            </TouchableOpacity>
+            {SERVICE_FILTERS.map((service) => {
+              const active = selectedServices.includes(service);
+              return (
+                <TouchableOpacity
+                  key={service}
+                  style={[styles.chip, active && styles.chipActive]}
+                  onPress={() => toggleService(service)}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{service}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
         
         <View style={styles.filterCard}>
           <Text style={styles.sectionTitle}>Accepted Items</Text>
           <View style={styles.chipContainer}>
-            <TouchableOpacity style={styles.chip}>
-              <Text style={styles.chipText}>Mobile Phones</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.chip}>
-              <Text style={styles.chipText}>Laptops</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.chip}>
-              <Text style={styles.chipText}>Batteries</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.chip}>
-              <Text style={styles.chipText}>Monitors</Text>
-            </TouchableOpacity>
+            {ITEM_FILTERS.map((item) => {
+              const active = selectedItems.includes(item);
+              return (
+                <TouchableOpacity
+                  key={item}
+                  style={[styles.chip, active && styles.chipActive]}
+                  onPress={() => toggleItem(item)}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{item}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
+
+        <Text style={styles.resultsSummary}>
+          Showing {filteredLocations.length} center{filteredLocations.length === 1 ? '' : 's'}
+        </Text>
+
+        {filteredLocations.map((location) => (
+          <View key={location.id} style={styles.locationCard}>
+            <Text style={styles.locationName}>{location.name}</Text>
+            <Text style={styles.locationAddress}>{location.address}</Text>
+            <Text style={styles.locationServices}>Services: {location.services}</Text>
+            <Text style={styles.locationDistance}>{location.distance}</Text>
+            <Text style={styles.acceptedItemsLabel}>Accepted items:</Text>
+            <View style={styles.acceptedItemsRow}>
+              {location.acceptedItems.map((item) => (
+                <View key={item} style={styles.acceptedItemChip}>
+                  <Text style={styles.acceptedItemText}>{item}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ))}
       </ScrollView>
     </View>
   );
@@ -157,7 +167,6 @@ function ScannerScreen() {
   );
 }
 
-// Simple Awareness Screen
 function AwarenessScreen() {
   return (
     <View style={styles.container}>
@@ -182,13 +191,91 @@ function AwarenessScreen() {
           <Text style={styles.tipTitle}>🌍 Global E-Waste Crisis</Text>
           <Text style={styles.tipText}>The world generates 50 million tons of e-waste annually, but only 20% is properly recycled.</Text>
         </View>
+
+        <View style={styles.tipCard}>
+          <Text style={styles.tipTitle}>✅ How to Prepare Devices for Recycling</Text>
+          <Text style={styles.tipText}>1. Back up important data from phones and laptops.</Text>
+          <Text style={styles.tipText}>2. Sign out of accounts (Google, Apple ID, social media).</Text>
+          <Text style={styles.tipText}>3. Perform a factory reset or secure wipe.</Text>
+          <Text style={styles.tipText}>4. Remove SIM cards and memory cards before drop‑off.</Text>
+        </View>
+
+        <View style={styles.tipCard}>
+          <Text style={styles.tipTitle}>♻️ What Can Be Recycled</Text>
+          <Text style={styles.tipText}>Most centers accept: mobile phones, laptops, chargers, headphones, small appliances, printers, and monitors.</Text>
+          <Text style={styles.tipText}>Many also take: batteries, cables, routers, set‑top boxes, and old game consoles.</Text>
+        </View>
+
+        <View style={styles.tipCard}>
+          <Text style={styles.tipTitle}>🚫 Never Throw These in the Trash</Text>
+          <Text style={styles.tipText}>• Loose batteries (phone, laptop, power‑tool, vape).</Text>
+          <Text style={styles.tipText}>• Broken screens and CRT TVs.</Text>
+          <Text style={styles.tipText}>• Devices that smell burnt, swollen, or leaking.</Text>
+        </View>
+
+        <View style={styles.tipCard}>
+          <Text style={styles.tipTitle}>👥 Community Actions</Text>
+          <Text style={styles.tipText}>• Organize a collection drive at your school, office, or society.</Text>
+          <Text style={styles.tipText}>• Help older family members safely dispose of their devices.</Text>
+          <Text style={styles.tipText}>• Share verified e‑waste facts instead of myths on social media.</Text>
+        </View>
+
+        <View style={styles.tipCard}>
+          <Text style={styles.tipTitle}>📊 Quick Facts</Text>
+          <Text style={styles.tipText}>• Up to 90% of a smartphone’s materials can be recovered if recycled properly.</Text>
+          <Text style={styles.tipText}>• Recycling 1 million laptops saves enough energy to power thousands of homes for a year.</Text>
+          <Text style={styles.tipText}>• Proper e‑waste recycling creates green jobs and reduces mining for new metals.</Text>
+        </View>
       </ScrollView>
     </View>
   );
 }
 
-// Simple Profile Screen
 function ProfileScreen() {
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [locationSharingEnabled, setLocationSharingEnabled] = useState(true);
+
+  const handleToggleNotifications = (nextValue: boolean) => {
+    setNotificationsEnabled(nextValue);
+    Alert.alert(
+      'Notifications',
+      nextValue
+        ? 'Push notifications are now ON. We will keep you updated about nearby drives and pickups.'
+        : 'Push notifications are now OFF. You can turn them back on anytime from here.',
+    );
+  };
+
+  const handleToggleLocation = async (nextValue: boolean) => {
+    if (nextValue) {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Location',
+          'Location permission was not granted. Location sharing will stay OFF.',
+        );
+        return;
+      }
+      setLocationSharingEnabled(true);
+      Alert.alert(
+        'Location',
+        'Location sharing is ON. We will use your location to suggest the nearest collection centers.',
+      );
+    } else {
+      setLocationSharingEnabled(false);
+      Alert.alert(
+        'Location',
+        'Location sharing is now OFF. We will stop using your location for suggestions.',
+      );
+    }
+  };
+
+  const handleHelpPress = () => {
+    Alert.alert(
+      'Help & Support',
+      'Have questions about safe e‑waste disposal or pickups?\n\nEmail: support@ewasteapp.com\nHelpline: +1 (800) 555‑EWST',
+    );
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>👤 Profile</Text>
@@ -211,21 +298,93 @@ function ProfileScreen() {
             </View>
           </View>
         </View>
+
+        <View style={styles.impactCard}>
+          <Text style={styles.sectionTitle}>Your Impact</Text>
+          <View style={styles.impactRow}>
+            <View style={styles.impactStat}>
+              <Text style={styles.impactNumber}>24 kg</Text>
+              <Text style={styles.impactLabel}>E‑waste recycled</Text>
+            </View>
+            <View style={styles.impactStat}>
+              <Text style={styles.impactNumber}>18 kg</Text>
+              <Text style={styles.impactLabel}>CO₂ saved</Text>
+            </View>
+          </View>
+          <Text style={styles.impactFootnote}>
+            Based on your 8 contributions logged in the last 12 months.
+          </Text>
+        </View>
+
+        <View style={styles.badgesCard}>
+          <Text style={styles.sectionTitle}>Badges</Text>
+          <View style={styles.badgeRow}>
+            <View style={styles.badgeChip}>
+              <Text style={styles.badgeEmoji}>🌱</Text>
+              <Text style={styles.badgeLabel}>First Drop‑off</Text>
+            </View>
+            <View style={styles.badgeChip}>
+              <Text style={styles.badgeEmoji}>♻️</Text>
+              <Text style={styles.badgeLabel}>Battery Saver</Text>
+            </View>
+            <View style={styles.badgeChip}>
+              <Text style={styles.badgeEmoji}>🏅</Text>
+              <Text style={styles.badgeLabel}>Community Hero</Text>
+            </View>
+          </View>
+        </View>
         
         <View style={styles.settingsCard}>
           <Text style={styles.sectionTitle}>Settings</Text>
-          <TouchableOpacity style={styles.settingItem}>
+          <View style={styles.settingItem}>
             <Text style={styles.settingText}>🔔 Push Notifications</Text>
-            <Text style={styles.settingValue}>ON</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.settingItem}>
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={handleToggleNotifications}
+              thumbColor={notificationsEnabled ? '#2E7D32' : '#f4f3f4'}
+              trackColor={{ false: '#ccc', true: '#A5D6A7' }}
+            />
+          </View>
+          <View style={styles.settingItem}>
             <Text style={styles.settingText}>📍 Location Sharing</Text>
-            <Text style={styles.settingValue}>ON</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.settingItem}>
+            <Switch
+              value={locationSharingEnabled}
+              onValueChange={handleToggleLocation}
+              thumbColor={locationSharingEnabled ? '#2E7D32' : '#f4f3f4'}
+              trackColor={{ false: '#ccc', true: '#A5D6A7' }}
+            />
+          </View>
+          <TouchableOpacity style={styles.settingItem} onPress={handleHelpPress}>
             <Text style={styles.settingText}>❓ Help & Support</Text>
             <Text style={styles.settingValue}>›</Text>
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.activityCard}>
+          <Text style={styles.sectionTitle}>Recent Activity</Text>
+          <View style={styles.activityItem}>
+            <Text style={styles.activityBullet}>•</Text>
+            <View style={styles.activityTextContainer}>
+              <Text style={styles.activityTitle}>
+                Dropped 2 laptops at GreenTech Recycling Center
+              </Text>
+              <Text style={styles.activityMeta}>3 days ago · +250 pts</Text>
+            </View>
+          </View>
+          <View style={styles.activityItem}>
+            <Text style={styles.activityBullet}>•</Text>
+            <View style={styles.activityTextContainer}>
+              <Text style={styles.activityTitle}>Recycled 6 batteries at EcoDrop Mobile</Text>
+              <Text style={styles.activityMeta}>1 week ago · +120 pts</Text>
+            </View>
+          </View>
+          <View style={styles.activityItem}>
+            <Text style={styles.activityBullet}>•</Text>
+            <View style={styles.activityTextContainer}>
+              <Text style={styles.activityTitle}>Shared awareness article with 5 friends</Text>
+              <Text style={styles.activityMeta}>2 weeks ago · +80 pts</Text>
+            </View>
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -288,6 +447,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  searchBarContainer: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+  },
+  searchInput: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
   mapContainer: {
     height: 260,
     marginHorizontal: 16,
@@ -343,6 +515,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
   },
+  acceptedItemsLabel: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#555',
+  },
+  acceptedItemsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 4,
+    gap: 6,
+  },
+  acceptedItemChip: {
+    backgroundColor: '#F1F8E9',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  acceptedItemText: {
+    fontSize: 11,
+    color: '#33691E',
+  },
+  resultsSummary: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    fontSize: 12,
+    color: '#666',
+  },
   filterCard: {
     backgroundColor: '#fff',
     padding: 16,
@@ -372,6 +572,12 @@ const styles = StyleSheet.create({
     color: '#2E7D32',
     fontSize: 12,
     fontWeight: '500',
+  },
+  chipActive: {
+    backgroundColor: '#2E7D32',
+  },
+  chipTextActive: {
+    color: '#fff',
   },
   scannerContainer: {
     flex: 1,
@@ -482,6 +688,65 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
   },
+  impactCard: {
+    backgroundColor: '#fff',
+    padding: 16,
+    marginBottom: 12,
+    borderRadius: 8,
+    elevation: 2,
+  },
+  impactRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  impactStat: {
+    flex: 1,
+  },
+  impactNumber: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2E7D32',
+  },
+  impactLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  impactFootnote: {
+    marginTop: 8,
+    fontSize: 11,
+    color: '#999',
+  },
+  badgesCard: {
+    backgroundColor: '#fff',
+    padding: 16,
+    marginBottom: 12,
+    borderRadius: 8,
+    elevation: 2,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  badgeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F8E9',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  badgeEmoji: {
+    marginRight: 6,
+    fontSize: 16,
+  },
+  badgeLabel: {
+    fontSize: 12,
+    color: '#33691E',
+    fontWeight: '500',
+  },
   settingsCard: {
     backgroundColor: '#fff',
     padding: 16,
@@ -505,5 +770,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#2E7D32',
     fontWeight: '500',
+  },
+  activityCard: {
+    backgroundColor: '#fff',
+    padding: 16,
+    marginBottom: 24,
+    borderRadius: 8,
+    elevation: 2,
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  activityBullet: {
+    fontSize: 16,
+    color: '#2E7D32',
+    marginRight: 8,
+  },
+  activityTextContainer: {
+    flex: 1,
+  },
+  activityTitle: {
+    fontSize: 14,
+    color: '#333',
+  },
+  activityMeta: {
+    fontSize: 12,
+    color: '#777',
+    marginTop: 2,
   },
 });
