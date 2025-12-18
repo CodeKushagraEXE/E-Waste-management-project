@@ -4,35 +4,79 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
 const Tab = createBottomTabNavigator();
 
-// Simple Map Screen
+const SAMPLE_LOCATIONS = [
+  {
+    id: 'greentech',
+    name: 'GreenTech Recycling Center',
+    address: '1234 Environmental Ave, San Francisco, CA',
+    services: 'Recycling, Donation, Buy Back',
+    distance: '2.3 km away',
+    latitude: 37.77926,
+    longitude: -122.4192,
+  },
+  {
+    id: 'ecodrop',
+    name: 'EcoDrop Mobile Collection',
+    address: '5678 Green Street, San Francisco, CA',
+    services: 'Pickup, Drop-off',
+    distance: '1.8 km away',
+    latitude: 37.7719,
+    longitude: -122.4312,
+  },
+  {
+    id: 'techrepair',
+    name: 'TechRepair Plus',
+    address: '9012 Tech Boulevard, San Francisco, CA',
+    services: 'Repair, Recycling, Buy Back',
+    distance: '3.1 km away',
+    latitude: 37.7885,
+    longitude: -122.4075,
+  },
+];
+
+// Map Screen with Google Maps and sample locations
 function MapScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>🗺️ E-Waste Collection Centers</Text>
+      <View style={styles.mapContainer}>
+        <MapView
+          style={styles.map}
+          provider={PROVIDER_GOOGLE}
+          initialRegion={{
+            latitude: 37.77926,
+            longitude: -122.4192,
+            latitudeDelta: 0.06,
+            longitudeDelta: 0.06,
+          }}
+        >
+          {SAMPLE_LOCATIONS.map((location) => (
+            <Marker
+              key={location.id}
+              coordinate={{
+                latitude: location.latitude,
+                longitude: location.longitude,
+              }}
+              title={location.name}
+              description={`${location.address} • ${location.services}`}
+            />
+          ))}
+        </MapView>
+      </View>
+
       <ScrollView style={styles.scrollView}>
-        <View style={styles.locationCard}>
-          <Text style={styles.locationName}>GreenTech Recycling Center</Text>
-          <Text style={styles.locationAddress}>1234 Environmental Ave, San Francisco, CA</Text>
-          <Text style={styles.locationServices}>Services: Recycling, Donation, Buy Back</Text>
-          <Text style={styles.locationDistance}>2.3 km away</Text>
-        </View>
-        
-        <View style={styles.locationCard}>
-          <Text style={styles.locationName}>EcoDrop Mobile Collection</Text>
-          <Text style={styles.locationAddress}>5678 Green Street, San Francisco, CA</Text>
-          <Text style={styles.locationServices}>Services: Pickup, Drop-off</Text>
-          <Text style={styles.locationDistance}>1.8 km away</Text>
-        </View>
-        
-        <View style={styles.locationCard}>
-          <Text style={styles.locationName}>TechRepair Plus</Text>
-          <Text style={styles.locationAddress}>9012 Tech Boulevard, San Francisco, CA</Text>
-          <Text style={styles.locationServices}>Services: Repair, Recycling, Buy Back</Text>
-          <Text style={styles.locationDistance}>3.1 km away</Text>
-        </View>
+        {SAMPLE_LOCATIONS.map((location) => (
+          <View key={location.id} style={styles.locationCard}>
+            <Text style={styles.locationName}>{location.name}</Text>
+            <Text style={styles.locationAddress}>{location.address}</Text>
+            <Text style={styles.locationServices}>Services: {location.services}</Text>
+            <Text style={styles.locationDistance}>{location.distance}</Text>
+          </View>
+        ))}
       </ScrollView>
     </View>
   );
@@ -243,6 +287,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  mapContainer: {
+    height: 260,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    elevation: 3,
+  },
+  map: {
+    flex: 1,
+    width: '100%',
   },
   title: {
     fontSize: 24,
